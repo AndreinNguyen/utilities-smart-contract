@@ -4,7 +4,7 @@ pragma solidity ^0.8.7;
 import "./libary/utilities.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
 
-contract collection  {
+contract collection {
     using Counters for Counters.Counter;
     Counters.Counter private _collectionIds;
     address public backend_address;

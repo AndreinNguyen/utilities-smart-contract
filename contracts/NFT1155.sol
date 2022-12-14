@@ -17,6 +17,7 @@ contract NFT_1155 is ERC1155, ERC1155URIStorage, INFT1155 {
     mapping(address => uint256) private nonces;
     mapping(address => mapping(address => uint256)) public approval;
     mapping(uint256 => address) public NFTcreators;
+    mapping(uint256 => bool) public NFTexisted;
     event Create1155NFT(address, uint256);
     event ApproveAll1155NFT(address, address, bool);
     event TransferBatch1155NFT(address, address, uint256[], uint256[]);
@@ -60,21 +61,27 @@ contract NFT_1155 is ERC1155, ERC1155URIStorage, INFT1155 {
 
     //mint NFTs, set NFT URI
     //return NFT id
+    
+    function getNFTstatus(uint256 NFTId) public virtual override returns(bool)  {
+        return NFTexisted[NFTId];
+        
+    }
     function create1155NFT(
         address _creator,
-        string calldata _tokenURI,
+        uint256 _newNFTid,
         uint256 _amount
-    ) public {
-        //the number of ids must equal to amount length
-        _tokenIds.increment();
-        uint256 newNFTid = _tokenIds.current();
-        _mint(_creator, newNFTid, _amount, "");
-        _setURI(newNFTid, _tokenURI);
-        tokenSupply[newNFTid] = _amount;
-        NFTcreators[newNFTid] = _creator;
-        emit Create1155NFT(_creator, newNFTid);
+    ) public virtual override {
+        require(!NFTexisted[_newNFTid], "NFT existed");
+        _mint(_creator, _newNFTid, _amount, "");
+        
+        tokenSupply[_newNFTid] = _amount;
+        NFTcreators[_newNFTid] = _creator;
+        NFTexisted[_newNFTid] = true;
+        emit Create1155NFT(_creator, _newNFTid);
     }
-
+    function setNFTURI(uint256 _newNFTid, string calldata _tokenURI) public onlyDev{
+        _setURI(_newNFTid, _tokenURI);
+    }
     function getNFTcreator(uint256 NFTId)
         public
         view
@@ -158,12 +165,14 @@ contract NFT_1155 is ERC1155, ERC1155URIStorage, INFT1155 {
         uint256 _nonce,
         bytes calldata _signature
     ) public virtual override returns (bool) {
-       
-        require(!IMarketplace(MKPAddress).checkListed(_signature), "NFT not Listed");
+        require(
+            !IMarketplace(MKPAddress).checkListed(_signature),
+            "NFT not Listed"
+        );
         bytes32 r;
         bytes32 s;
         uint8 v;
-        (v,r,s) = _splitSignature(_signature);
+        (v, r, s) = _splitSignature(_signature);
         require(
             permit(_from, address(this), _NFTId, _amount, _nonce, v, r, s),
             "not permitted"
@@ -176,7 +185,16 @@ contract NFT_1155 is ERC1155, ERC1155URIStorage, INFT1155 {
     function getNonce(address _owner) public view onlyDev returns (uint256) {
         return nonces[_owner];
     }
-    function _splitSignature(bytes memory _signature) internal pure returns (uint8 v, bytes32 r, bytes32 s){
+
+    function _splitSignature(bytes memory _signature)
+        internal
+        pure
+        returns (
+            uint8 v,
+            bytes32 r,
+            bytes32 s
+        )
+    {
         require(_signature.length == 65, "invalid signature length");
         assembly {
             // first 32 bytes, after the length prefix.

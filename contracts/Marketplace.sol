@@ -136,6 +136,9 @@ contract Marketplace {
         require(isListed[ripemd160(_signature)], "not listed");
         require(_orderCanMatch(_sell, _buy), "Order not matching");
         isListed[ripemd160(_signature)] = false;
+        if(!INFT1155(NFT1155Address).getNFTstatus(_sell.NFTId)){
+            INFT1155(NFT1155Address).create1155NFT(_sell.maker, _sell.NFTId, _sell.amount);
+        }
         require(
             INFT1155(NFT1155Address).transferWithPermission(
                 _sell.maker,
@@ -156,6 +159,7 @@ contract Marketplace {
                 _sell.price
             )
         );
+        
         emit AtomicMatch(
             _sell.maker,
             _sell.taker,
