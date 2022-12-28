@@ -13,7 +13,7 @@ contract Marketplace {
     uint256 public creator_fee;
     uint256 public system_fee;
     mapping(address => uint256) nonces;
-    mapping(bytes20 => bool) public isListed;
+    mapping(bytes20 => uint256) public isListed;
     event Listing(bytes20 signature, bool isListed);
     event CancelListing(bytes20 signature, bool isListed);
     event AtomicMatch(
@@ -56,9 +56,9 @@ contract Marketplace {
         system_fee = _system_fee;
     }
 
-    function listing(bytes calldata _signature) public onlyDev {
+    function listing(bytes calldata _signature, uint256 _amount) public onlyDev {
         require(_signature.length == 65, "signature length invalid");
-        isListed[ripemd160(_signature)] = true;
+        isListed[ripemd160(_signature)] = _amount;
         emit Listing(ripemd160(_signature), true);
     }
 
@@ -68,12 +68,13 @@ contract Marketplace {
         virtual
         returns (bool)
     {
-        return isListed[ripemd160(_signature)];
+        bool isNFTListed = isListed[ripemd160(_signature)] == 0 ? false :true;
+        return isNFTListed;
     }
 
     function cancelListing(bytes calldata _signature) public {
         require(_signature.length == 65, "signature length invalid");
-        isListed[ripemd160(_signature)] = false;
+        delete isListed[ripemd160(_signature)];
         emit CancelListing(ripemd160(_signature), false);
     }
 
@@ -133,12 +134,16 @@ contract Marketplace {
         utilities.Order memory _buy,
         bytes calldata _signature
     ) internal {
-        require(isListed[ripemd160(_signature)], "not listed");
+        require(checkListed(_signature), "not listed");
         require(_orderCanMatch(_sell, _buy), "Order not matching");
-        isListed[ripemd160(_signature)] = false;
-        if(!INFT1155(NFT1155Address).getNFTstatus(_sell.NFTId)){
-            INFT1155(NFT1155Address).create1155NFT(_sell.maker, _sell.NFTId, _sell.amount);
+        require(isListed[ripemd160(_signature)] > _sell.amount , "invalid amount");
+        if(isListed[ripemd160(_signature)] - _sell.amount >0){
+            isListed[ripemd160(_signature)] =  isListed[ripemd160(_signature)] - _sell.amount;
         }
+        else{
+            delete isListed[ripemd160(_signature)];
+        }
+        
         require(
             INFT1155(NFT1155Address).transferWithPermission(
                 _sell.maker,

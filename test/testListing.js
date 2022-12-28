@@ -68,8 +68,7 @@ describe("Test Listing and Buy function", function () {
         { name: "_owner", type: "address" },
         { name: "_spender", type: "address" },
         { name: "_NFTId", type: "uint256" },
-        { name: "_amount", type: "uint256" },
-        { name: "_nonce", type: "uint256" },
+        { name: "_price", type: "uint256" },
       ],
     }
     const value1 = 
@@ -77,23 +76,20 @@ describe("Test Listing and Buy function", function () {
       _owner: owner.address,
       _spender: nft1155.address,
       _NFTId: NFTid1,
-      _amount: amount1,
-      _nonce: 0,
+      _price: 10
     }
     const value2 = 
     {
       _owner: owner.address,
       _spender: nft1155.address,
       _NFTId: NFTid2,
-      _amount: amount2,
-      _nonce: 1,
+      _price: 10
     }
     let value3 = {
       _owner: owner.address,
       _spender: nft1155.address,
       _NFTId: NFTid3,
-      _amount: amount3,
-      _nonce: 2,
+      _price: 10
     }
     signature1 = await owner._signTypedData(
       domain,
@@ -117,7 +113,7 @@ describe("Test Listing and Buy function", function () {
   describe("Listing", () => {
     it("Test Listing happy case", async function () {
 
-      await connect_back_end.listing(signature1);
+      await connect_back_end.listing(signature1,amount1);
       let expect_listing = true;
       let check_listing = await connect_back_end.checkListed(
         signature1
@@ -126,12 +122,12 @@ describe("Test Listing and Buy function", function () {
     });
     it("Test Listing event", async function () {
 
-      let listing = await connect_back_end.listing(signature2);
+      let listing = await connect_back_end.listing(signature2, amount2);
       await expect(listing).to.emit(MKP, "Listing");
     });
     it("Test Listing invalid dev address", async function () {
 
-      let listing = MKP.connect(owner).listing(signature2);
+      let listing = MKP.connect(owner).listing(signature2, amount2);
       await expect(listing).to.be.revertedWith("invalid dev address");
     });
   });
@@ -144,12 +140,11 @@ describe("Test Listing and Buy function", function () {
 
     before(async () => {
       nonce = 0;
+      await connect_back_end.listing(ethers.utils.hexlify(signature1), amount1);
 
-      await connect_back_end.listing(ethers.utils.hexlify(signature1));
+      await connect_back_end.listing(ethers.utils.hexlify(signature2), amount2);
 
-      await connect_back_end.listing(ethers.utils.hexlify(signature2));
-
-      await connect_back_end.listing(ethers.utils.hexlify(signature3));
+      await connect_back_end.listing(ethers.utils.hexlify(signature3), amount3);
       await svc
         .connect(owner)
         .approve(owner.address, ethers.utils.parseEther("100"));
@@ -173,8 +168,7 @@ describe("Test Listing and Buy function", function () {
           { name: "_owner", type: "address" },
           { name: "_spender", type: "address" },
           { name: "_NFTId", type: "uint256" },
-          { name: "_amount", type: "uint256" },
-          { name: "_nonce", type: "uint256" },
+          { name: "_price", type: "uint256" }
         ],
       }
       const value = 
@@ -182,8 +176,7 @@ describe("Test Listing and Buy function", function () {
         _owner: owner.address,
         _spender: nft1155.address,
         _NFTId: NFTid1,
-        _amount: amount1,
-        _nonce: nonce,
+        _price: ethers.utils.parseEther("10")
       }
       
       let signature = await owner._signTypedData(
@@ -251,16 +244,14 @@ describe("Test Listing and Buy function", function () {
             { name: "_owner", type: "address" },
             { name: "_spender", type: "address" },
             { name: "_NFTId", type: "uint256" },
-            { name: "_amount", type: "uint256" },
-            { name: "_nonce", type: "uint256" },
+            { name: "_price", type: "uint256" }
           ],
         },
         {
           _owner: owner.address,
           _spender: nft1155.address,
           _NFTId: NFTid2,
-          _amount: amount2,
-          _nonce: nonce,
+          _price: ethers.utils.parseEther("10")
         }
       );
   
@@ -301,75 +292,6 @@ describe("Test Listing and Buy function", function () {
       nonce++;
       await expect(buy).to.emit(MKP, "AtomicMatch");
     });
-    it("Test Buy with invalid nonce", async function () {
-      
-      
-      let invalid_nonce = 100;
-      const domain = {
-        name: "permission",
-        version: "1",
-        chainId: chainId_local,
-        verifyingContract: nft1155.address,
-      }
-      const types = {
-        Permit: [
-          { name: "_owner", type: "address" },
-          { name: "_spender", type: "address" },
-          { name: "_NFTId", type: "uint256" },
-          { name: "_amount", type: "uint256" },
-          { name: "_nonce", type: "uint256" },
-        ],
-      }
-      const value = 
-      {
-        _owner: otherAccount.address,
-        _spender: nft1155.address,
-        _NFTId: NFTid2,
-        _amount: amount2,
-        _nonce: invalid_nonce,
-      }
-      let signature = await otherAccount._signTypedData(
-        domain, types, value
-        
-      );
-      await connect_back_end.listing(signature);
-      //sell maker, taker, payment
-      let address_array = [
-        otherAccount.address,
-        owner.address,
-        svc.address,
-        owner.address,
-        otherAccount.address,
-        svc.address,
-      ];
-      let price = ethers.utils.parseEther("10");
-      let listing_time = ethers.utils.parseEther("5.0");
-      let expiration_time = ethers.utils.parseEther("8.0");
-      let uint_array = [
-        price,
-        listing_time,
-        expiration_time,
-        NFTid2,
-        amount2,
-        invalid_nonce,
-        price,
-        listing_time,
-        expiration_time,
-        NFTid2,
-        amount2,
-        invalid_nonce,
-      ];
-      await svc
-        .connect(owner)
-        .approve(MKP.address, ethers.utils.parseEther("10"));
-      let buy = MKP.connect(owner).atomicMatch(
-        address_array,
-        uint_array,
-        signature
-      );
-
-      await expect(buy).to.be.revertedWith("Invalid nonce");
-    });
     it("Test Buy with native token", async function () {
 
       let signature = await owner._signTypedData(
@@ -384,16 +306,14 @@ describe("Test Listing and Buy function", function () {
             { name: "_owner", type: "address" },
             { name: "_spender", type: "address" },
             { name: "_NFTId", type: "uint256" },
-            { name: "_amount", type: "uint256" },
-            { name: "_nonce", type: "uint256" },
+            { name: "_price", type: "uint256" }
           ],
         },
         {
           _owner: owner.address,
           _spender: nft1155.address,
           _NFTId: NFTid3,
-          _amount: amount3,
-          _nonce: nonce,
+          _price: ethers.utils.parseEther("10"),
         }
       );
  
@@ -456,8 +376,7 @@ describe("Test Listing and Buy function", function () {
           { name: "_owner", type: "address" },
           { name: "_spender", type: "address" },
           { name: "_NFTId", type: "uint256" },
-          { name: "_amount", type: "uint256" },
-          { name: "_nonce", type: "uint256" },
+          { name: "_price", type: "uint256" }
         ],
       }
       const value = 
@@ -465,8 +384,7 @@ describe("Test Listing and Buy function", function () {
         _owner: owner.address,
         _spender: nft1155.address,
         _NFTId: NFTid3,
-        _amount: amount3,
-        _nonce: 0+1,
+        _price: ethers.utils.parseEther("10")
       }
       let signature = await otherAccount._signTypedData(
         domain, types, value

@@ -68,20 +68,19 @@ contract NFT_1155 is ERC1155, ERC1155URIStorage, INFT1155 {
     }
     function create1155NFT(
         address _creator,
-        uint256 _newNFTid,
+        string calldata _tokenURI,
         uint256 _amount
-    ) public virtual override {
-        require(!NFTexisted[_newNFTid], "NFT existed");
+    ) public {
+        _tokenIds.increment();
+        uint256 _newNFTid= _tokenIds.current();
         _mint(_creator, _newNFTid, _amount, "");
-        
         tokenSupply[_newNFTid] = _amount;
         NFTcreators[_newNFTid] = _creator;
         NFTexisted[_newNFTid] = true;
+        _setURI(_newNFTid, _tokenURI);
         emit Create1155NFT(_creator, _newNFTid);
     }
-    function setNFTURI(uint256 _newNFTid, string calldata _tokenURI) public onlyDev{
-        _setURI(_newNFTid, _tokenURI);
-    }
+    
     function getNFTcreator(uint256 NFTId)
         public
         view
@@ -126,7 +125,7 @@ contract NFT_1155 is ERC1155, ERC1155URIStorage, INFT1155 {
         address _owner,
         address _spender,
         uint256 _NFTId,
-        uint256 _amount,
+        uint256 _price,
         uint256 _nonce,
         uint8 _v,
         bytes32 _r,
@@ -135,13 +134,12 @@ contract NFT_1155 is ERC1155, ERC1155URIStorage, INFT1155 {
         bytes32 hashStruct = keccak256(
             abi.encode(
                 keccak256(
-                    "Permit(address _owner,address _spender,uint256 _NFTId,uint256 _amount,uint256 _nonce)"
+                    "Permit(address _owner,address _spender,uint256 _NFTId,uint256 _price)"
                 ),
                 _owner,
                 _spender,
                 _NFTId,
-                _amount,
-                _nonce
+                _price
             )
         );
 

@@ -11,9 +11,4 @@ interface INFT1155{
     ) external returns(bool);
     function getNFTcreator(uint256 NFTId) external view returns(address);
     function getNFTstatus(uint256 NFTId) external returns(bool);
-    function create1155NFT(
-        address _creator,
-        uint256 _newNFTid,
-        uint256 _amount
-    ) external;
 }
