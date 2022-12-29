@@ -6,9 +6,10 @@ interface INFT1155{
         address _to,
         uint256 _NFTId,
         uint256 _amount,
+        uint256 _price,
         uint256 _nonce,
         bytes calldata _signature
     ) external returns(bool);
     function getNFTcreator(uint256 NFTId) external view returns(address);
-    function getNFTstatus(uint256 NFTId) external returns(bool);
+
 }

@@ -76,20 +76,20 @@ describe("Test Listing and Buy function", function () {
       _owner: owner.address,
       _spender: nft1155.address,
       _NFTId: NFTid1,
-      _price: 10
+      _price: ethers.utils.parseEther("10")
     }
     const value2 = 
     {
       _owner: owner.address,
       _spender: nft1155.address,
       _NFTId: NFTid2,
-      _price: 10
+      _price: ethers.utils.parseEther("10")
     }
     let value3 = {
       _owner: owner.address,
       _spender: nft1155.address,
       _NFTId: NFTid3,
-      _price: 10
+      _price: ethers.utils.parseEther("10")
     }
     signature1 = await owner._signTypedData(
       domain,
@@ -218,7 +218,7 @@ describe("Test Listing and Buy function", function () {
       await MKP.connect(otherAccount).atomicMatch(
         address_array,
         uint_array,
-        ethers.utils.hexlify(signature)
+        ethers.utils.hexlify(signature1)
       );
       let NFTbalance = await nft1155.balanceOf(otherAccount.address, NFTid1);
       let token_balance = await svc.balanceOf(owner.address);
@@ -362,43 +362,40 @@ describe("Test Listing and Buy function", function () {
       expect(token_balance).to.equal(expect_token_balance);
       nonce++;
     });
-    it("Test Buy with invalid owner", async function () {
+    it("Test Buy with lower amount", async function () {
       
-      
-      const domain = {
-        name: "permission",
-        version: "1",
-        chainId: chainId_local,
-        verifyingContract: nft1155.address,
-      }
-      const types = {
-        Permit: [
-          { name: "_owner", type: "address" },
-          { name: "_spender", type: "address" },
-          { name: "_NFTId", type: "uint256" },
-          { name: "_price", type: "uint256" }
-        ],
-      }
-      const value = 
-      {
-        _owner: owner.address,
-        _spender: nft1155.address,
-        _NFTId: NFTid3,
-        _price: ethers.utils.parseEther("10")
-      }
       let signature = await otherAccount._signTypedData(
-        domain, types, value
-        
+        {
+          name: "permission",
+          version: "1",
+          chainId: chainId_local,
+          verifyingContract: nft1155.address,
+        },
+        {
+          Permit: [
+            { name: "_owner", type: "address" },
+            { name: "_spender", type: "address" },
+            { name: "_NFTId", type: "uint256" },
+            { name: "_price", type: "uint256" }
+          ],
+        },
+        {
+          _owner: otherAccount.address,
+          _spender: nft1155.address,
+          _NFTId: NFTid3,
+          _price: ethers.utils.parseEther("10"),
+        }
       );
-      await connect_back_end.listing(signature);
+      await connect_back_end.listing(signature, amount3);
+      console.log(await nft1155.balanceOf(owner.address, NFTid3));
       //sell maker, taker, payment
       let address_array = [
         otherAccount.address,
         owner.address,
-        svc.address,
+        ethers.constants.AddressZero,
         owner.address,
         otherAccount.address,
-        svc.address,
+        ethers.constants.AddressZero,
       ];
       let price = ethers.utils.parseEther("10");
       let listing_time = ethers.utils.parseEther("5.0");
@@ -409,24 +406,23 @@ describe("Test Listing and Buy function", function () {
         expiration_time,
         NFTid3,
         amount3,
-        0+1,
+        0,
         price,
         listing_time,
         expiration_time,
         NFTid3,
-        amount3,
-        0+1,
+        1,
+        0,
       ];
       await svc
-        .connect(owner)
+        .connect(otherAccount)
         .approve(MKP.address, ethers.utils.parseEther("10"));
-      let buy = MKP.connect(owner).atomicMatch(
+      await MKP.connect(otherAccount).atomicMatch(
         address_array,
         uint_array,
-        signature
+        signature,{value: ethers.utils.parseEther("10")}
       );
-
-      await expect(buy).to.be.revertedWith("invalid owner");
+     
     });
   });
 });

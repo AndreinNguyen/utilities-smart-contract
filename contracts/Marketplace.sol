@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 import "@openzeppelin/contracts/utils/Counters.sol";
-import "./libary/utilities.sol";
+import "./library/utilities.sol";
 import "./ISVC.sol";
 import "./INFT1155.sol";
 
@@ -38,30 +38,48 @@ contract Marketplace {
         creator_fee = _creator_fee;
         system_fee = _system_fee;
     }
-
+    /**
+     * @dev Throws if called by any account other than the dev.
+     */
     modifier onlyDev() {
         require(msg.sender == backend_address, "invalid dev address");
         _;
     }
-
+    /**
+     * @dev set contract NFT address 
+     * @param _NFT1155Address contract NFT address
+     */
     function setNFT1155Address(address _NFT1155Address) public onlyDev {
         NFT1155Address = _NFT1155Address;
     }
-
+    /**
+     * @dev set creator fee 
+     * @param _creator_fee creator fee
+     */
     function setCreatorFee(uint8 _creator_fee) public onlyDev {
         creator_fee = _creator_fee;
     }
-
+    /**
+     * @dev set system fee 
+     * @param _system_fee fee
+     */
     function setSystemFee(uint8 _system_fee) public onlyDev {
         system_fee = _system_fee;
     }
+    /**
+     * @dev set listing status on-chain  
+     * @param _signature NFT owner signature include owner address, spender address (NFT contract address), NFT id, price
+     */
 
     function listing(bytes calldata _signature, uint256 _amount) public onlyDev {
         require(_signature.length == 65, "signature length invalid");
         isListed[ripemd160(_signature)] = _amount;
         emit Listing(ripemd160(_signature), true);
     }
-
+    /**
+     * @dev check listing status  
+     * @param _signature NFT owner signature
+     */
     function checkListed(bytes calldata _signature)
         public
         view
@@ -71,13 +89,29 @@ contract Marketplace {
         bool isNFTListed = isListed[ripemd160(_signature)] == 0 ? false :true;
         return isNFTListed;
     }
-
+    function checkListingAmount(bytes calldata _signature)
+        public
+        view
+        virtual
+        returns (uint256)
+    {
+        
+        return isListed[ripemd160(_signature)];
+    }
+    /**
+     * @dev cancel listing  
+     * @param _signature NFT owner signature
+     */
     function cancelListing(bytes calldata _signature) public {
         require(_signature.length == 65, "signature length invalid");
         delete isListed[ripemd160(_signature)];
         emit CancelListing(ripemd160(_signature), false);
     }
-
+    /**
+     * @dev Check if 2 Order are Matching 
+     * @param _buy Buy side order
+     * @param _sell sell side order
+     */
     function _orderCanMatch(
         utilities.Order memory _sell,
         utilities.Order memory _buy
@@ -88,11 +122,18 @@ contract Marketplace {
             (_sell.listing_time <= _buy.listing_time) &&
             (_sell.expiration_time >= _buy.expiration_time) &&
             (_sell.NFTId == _buy.NFTId) &&
-            (_sell.amount == _buy.amount) &&
+            (_sell.amount >= _buy.amount) &&
             (_sell.nonce == _buy.nonce) &&
             (_sell.payment_token == _buy.payment_token));
     }
-
+    /**
+     * @dev Execute all ERC20 token / MATIC transfers associated with an order match 
+     * @param _buyer Buyer
+     * @param _payment_token token use for payment (if MATIC, address set to address(0))
+     * @param _NFT_creator NFT creator
+     * @param _seller NFT seller
+     * @param _price NFT price
+     */
     function _transferToken(
         address _buyer,
         address _payment_token,
@@ -128,7 +169,12 @@ contract Marketplace {
         }
         return true;
     }
-    
+    /**
+     * @dev Atomically match two orders, ensuring validity of the match, and execute all associated state transitions. Protected against reentrancy by a contract-global lock.
+     * @param _buy Buy-side order
+     * @param _sell Sell-side order
+     * @param _signature NFT owner signature
+     */
     function _atomicMatch(
         utilities.Order memory _sell,
         utilities.Order memory _buy,
@@ -136,7 +182,7 @@ contract Marketplace {
     ) internal {
         require(checkListed(_signature), "not listed");
         require(_orderCanMatch(_sell, _buy), "Order not matching");
-        require(isListed[ripemd160(_signature)] > _sell.amount , "invalid amount");
+        require(isListed[ripemd160(_signature)] >= _sell.amount , "invalid amount");
         if(isListed[ripemd160(_signature)] - _sell.amount >0){
             isListed[ripemd160(_signature)] =  isListed[ripemd160(_signature)] - _sell.amount;
         }
@@ -149,7 +195,8 @@ contract Marketplace {
                 _sell.maker,
                 _sell.taker,
                 _sell.NFTId,
-                _sell.amount,
+                _buy.amount,
+                _sell.price,
                 _sell.nonce,
                 _signature
             ),
@@ -174,7 +221,9 @@ contract Marketplace {
             true
         );
     }
-
+    /**
+     * @dev Call _atomicMatch - for buy NFT 
+     */
     function atomicMatch(
         address[6] calldata _addrs,
         uint256[12] calldata _uints,

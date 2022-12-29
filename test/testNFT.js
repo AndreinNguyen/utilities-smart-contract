@@ -154,7 +154,7 @@ describe("NFT1155 contract", function () {
             amount_insufficient,
             signature1
           )
-        ).to.be.revertedWith("ERC1155: insufficient balance for transfer");
+        ).to.be.revertedWith("insufficient balance for transfer");
       });
       it("transfer non existed NFT", async function () {
         let non_existed_Id = 100;
@@ -168,7 +168,7 @@ describe("NFT1155 contract", function () {
             1,
             signature1
           )
-        ).to.be.revertedWith("ERC1155: insufficient balance for transfer");
+        ).to.be.revertedWith("insufficient balance for transfer");
       });
       it("transfer NFT by invalid owner", async function () {
         let not_owner = nft1155.connect(otherAccount);

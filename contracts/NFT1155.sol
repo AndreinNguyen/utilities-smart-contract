@@ -3,7 +3,7 @@ pragma solidity ^0.8.7;
 import "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
 import "@openzeppelin/contracts/token/ERC1155/extensions/ERC1155URIStorage.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
-import "./libary/utilities.sol";
+import "./library/utilities.sol";
 import "./INFT1155.sol";
 import "./IMarketplace.sol";
 
@@ -28,7 +28,9 @@ contract NFT_1155 is ERC1155, ERC1155URIStorage, INFT1155 {
         uint256 tokenId,
         uint256 amount
     );
-
+    /**
+     * @dev set DOMAIN_SEPARATOR as EIP-721 standard
+     */
     constructor(string memory NFT_URI, address _backend_address)
         ERC1155(NFT_URI)
     {
@@ -49,30 +51,31 @@ contract NFT_1155 is ERC1155, ERC1155URIStorage, INFT1155 {
             )
         );
     }
-
+    /**
+     * @dev Throws if called by any account other than the dev.
+     */
     modifier onlyDev() {
         require(msg.sender == backend_address, "invalid dev address");
         _;
     }
-
+    /**
+     * @dev set MKP contract address
+     */
     function setMKPAddress(address _MKPAddress) public onlyDev {
         MKPAddress = _MKPAddress;
     }
 
-    //mint NFTs, set NFT URI
-    //return NFT id
-    
-    function getNFTstatus(uint256 NFTId) public virtual override returns(bool)  {
-        return NFTexisted[NFTId];
-        
-    }
+    /**
+     * @dev mint NFT
+     */
+
     function create1155NFT(
         address _creator,
         string calldata _tokenURI,
         uint256 _amount
     ) public {
         _tokenIds.increment();
-        uint256 _newNFTid= _tokenIds.current();
+        uint256 _newNFTid = _tokenIds.current();
         _mint(_creator, _newNFTid, _amount, "");
         tokenSupply[_newNFTid] = _amount;
         NFTcreators[_newNFTid] = _creator;
@@ -81,6 +84,9 @@ contract NFT_1155 is ERC1155, ERC1155URIStorage, INFT1155 {
         emit Create1155NFT(_creator, _newNFTid);
     }
     
+    /**
+     * @dev get NFT creator
+     */
     function getNFTcreator(uint256 NFTId)
         public
         view
@@ -89,12 +95,32 @@ contract NFT_1155 is ERC1155, ERC1155URIStorage, INFT1155 {
     {
         return NFTcreators[NFTId];
     }
-
+    /**
+     * @dev get NFT total supply
+     */
     function totalSupply(uint256 NFTid) public view returns (uint256) {
         require(NFTid <= _tokenIds.current(), "NFT not released");
         return tokenSupply[NFTid];
     }
-
+    /**
+     * @dev transfer NFT 
+     * @param _signature signature for checking if NFT listed
+     */
+    function safeTransferFrom(
+        address _from,
+        address _to,
+        uint256 _Id,
+        uint256 _amount,
+        bytes memory _signature
+    ) public override{
+        require(msg.sender == _from, "transfer from invalid owner");
+        require(
+            balanceOf(_from, _Id) - IMarketplace(MKPAddress).checkListingAmount(_signature)>= _amount,
+            "insufficient balance for transfer"
+        );
+        _safeTransferFrom(_from, _to, _Id, _amount, "");
+        emit Transfer1155NFT(_from, _to, _Id, _amount);
+    }
     function transfer1155NFT(
         address _from,
         address _to,
@@ -102,15 +128,11 @@ contract NFT_1155 is ERC1155, ERC1155URIStorage, INFT1155 {
         uint256 _amount,
         bytes memory _signature
     ) public {
-        require(msg.sender == _from, "transfer from invalid owner");
-        require(
-            !IMarketplace(MKPAddress).checkListed(_signature),
-            "NFT Listed"
-        );
-        _safeTransferFrom(_from, _to, _Id, _amount, "");
-        emit Transfer1155NFT(_from, _to, _Id, _amount);
+        safeTransferFrom(_from, _to, _Id, _amount, _signature);
     }
-
+    /**
+     * @dev Approve all NFT 1155 
+     */
     function approveAll1155NFT(
         address _owner,
         address _operator,
@@ -120,7 +142,9 @@ contract NFT_1155 is ERC1155, ERC1155URIStorage, INFT1155 {
         _setApprovalForAll(_owner, _operator, _approved);
         emit ApproveAll1155NFT(_owner, _operator, _approved);
     }
-
+    /**
+     * @dev permit function base on EIP-2612
+     */
     function permit(
         address _owner,
         address _spender,
@@ -154,17 +178,22 @@ contract NFT_1155 is ERC1155, ERC1155URIStorage, INFT1155 {
         approval[_owner][_spender] = _NFTId;
         return true;
     }
-
+    /**
+     * @dev transfer function for buy function in marketplace.
+     * @param _signature signature from NFT owner
+     * @param _nonce NFT owner's nonce,
+     */
     function transferWithPermission(
         address _from,
         address _to,
         uint256 _NFTId,
         uint256 _amount,
+        uint256 _price,
         uint256 _nonce,
         bytes calldata _signature
     ) public virtual override returns (bool) {
         require(
-            !IMarketplace(MKPAddress).checkListed(_signature),
+            IMarketplace(MKPAddress).checkListingAmount(_signature) >=0 ,
             "NFT not Listed"
         );
         bytes32 r;
@@ -172,18 +201,24 @@ contract NFT_1155 is ERC1155, ERC1155URIStorage, INFT1155 {
         uint8 v;
         (v, r, s) = _splitSignature(_signature);
         require(
-            permit(_from, address(this), _NFTId, _amount, _nonce, v, r, s),
+            permit(_from, address(this), _NFTId, _price, _nonce, v, r, s),
             "not permitted"
         );
         _safeTransferFrom(_from, _to, _NFTId, _amount, "");
         emit TransferWithPermission(_from, _to, _NFTId, _amount);
         return true;
     }
-
+    /** 
+    * @dev for back_end get nonce from smart contract.
+     * @param _owner address to get the nonce
+     */
     function getNonce(address _owner) public view onlyDev returns (uint256) {
         return nonces[_owner];
     }
-
+    /**
+     * @dev split signature to v, r, s form.
+     * @param _signature signature in bytes form
+     */
     function _splitSignature(bytes memory _signature)
         internal
         pure
